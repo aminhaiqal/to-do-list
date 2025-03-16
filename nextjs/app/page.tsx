@@ -33,7 +33,7 @@ export default function Home() {
       bookingRequired: false,
       accessibility: 0.5,
     },
-  });  
+  });
   const queryClient = useQueryClient();
   const { tasks, setTasks } = useTaskStore(); // Zustand for state persistence
 
@@ -63,7 +63,12 @@ export default function Home() {
   });
 
   // Handle form submission
-  const onSubmit = (data: TaskFormData) => createTaskMutation.mutate(data);
+  const onSubmit = (data: TaskFormData) => {
+    createTaskMutation.mutate({
+      ...data,
+      price: parseFloat(data.price as unknown as string), // Ensure price is a float
+    });
+  };
 
   // Sync Zustand state with database on page load
   useEffect(() => {
@@ -99,13 +104,14 @@ export default function Home() {
                   <SelectValue placeholder="Select task type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {["education", "recreational", "social", "diy", "charity", "cooking", "relaxation", "music", "busywork"].map((type) => (
+                  {Object.values(TaskType).map((type) => (
                     <SelectItem key={type} value={type}>
                       {type}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+
             </div>
 
             {/* Booking Required (Checkbox) */}
