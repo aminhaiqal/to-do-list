@@ -1,103 +1,163 @@
-import Image from "next/image";
+"use client";
 
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { createTask, getAllTasks, deleteTask } from "@/app/core/dals/taskDal";
+import { TaskType } from "@prisma/client";
+import { useTaskStore } from "@/app/store/taskStore";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+
+// Task form interface
+interface TaskFormData {
+  activity: string;
+  price: number;
+  type: TaskType;
+  bookingRequired: boolean;
+  accessibility: number;
+}
+
+// Task component
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const { register, handleSubmit, reset, setValue, watch } = useForm<TaskFormData>({
+    defaultValues: {
+      activity: "",
+      price: 0,
+      type: TaskType.EDUCATION,
+      bookingRequired: false,
+      accessibility: 0.5,
+    },
+  });  
+  const queryClient = useQueryClient();
+  const { tasks, setTasks } = useTaskStore(); // Zustand for state persistence
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+  // Fetch tasks
+  const { data: tasksData } = useQuery({
+    queryKey: ["tasks"],
+    queryFn: getAllTasks,
+  });
+
+  // Create task mutation
+  const createTaskMutation = useMutation({
+    mutationFn: createTask,
+    onSuccess: (newTask) => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      setTasks([...tasks, newTask]); // Update local store
+      reset(); // Reset form
+    },
+  });
+
+  // Delete task mutation
+  const deleteTaskMutation = useMutation({
+    mutationFn: deleteTask,
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      setTasks(tasks.filter((task) => task.id !== id));
+    },
+  });
+
+  // Handle form submission
+  const onSubmit = (data: TaskFormData) => createTaskMutation.mutate(data);
+
+  // Sync Zustand state with database on page load
+  useEffect(() => {
+    if (tasksData) setTasks(tasksData);
+  }, [tasksData, setTasks]);
+
+  return (
+    <div className="max-w-lg mx-auto space-y-6">
+      {/* Total Task Count */}
+      <h2 className="text-xl font-bold">Total Tasks: {tasks.length}</h2>
+
+      {/* Task Form */}
+      <Card>
+        <CardContent className="p-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {/* Activity */}
+            <div>
+              <Label>Activity</Label>
+              <Input {...register("activity", { required: true })} />
+            </div>
+
+            {/* Price */}
+            <div>
+              <Label>Price</Label>
+              <Input type="number" {...register("price", { required: true })} />
+            </div>
+
+            {/* Type (Dropdown) */}
+            <div>
+              <Label>Type</Label>
+              <Select onValueChange={(value) => setValue("type", value as TaskType)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select task type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {["education", "recreational", "social", "diy", "charity", "cooking", "relaxation", "music", "busywork"].map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Booking Required (Checkbox) */}
+            <div className="flex items-center space-x-2">
+              <Checkbox onCheckedChange={(checked) => setValue("bookingRequired", checked as boolean)} />
+              <Label>Booking Required</Label>
+            </div>
+
+            {/* Accessibility (Slider) */}
+            <div>
+              <Label>Accessibility</Label>
+              <Slider
+                defaultValue={[0.5]}
+                min={0}
+                max={1}
+                step={0.1}
+                onValueChange={(value) => setValue("accessibility", value[0])}
+              />
+              <p>Value: {watch("accessibility")}</p>
+            </div>
+
+            {/* Submit Button */}
+            <Button type="submit" disabled={createTaskMutation.isPending}>
+              {createTaskMutation.isPending ? "Adding..." : "Add Task"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Task List */}
+      <div className="space-y-4">
+        {tasks.map((task) => (
+          <Card key={task.id}>
+            <CardContent className="p-4 flex justify-between items-center">
+              <div>
+                <p className="font-semibold">{task.activity}</p>
+                <p>Price: ${task.price}</p>
+                <p>Type: {task.type}</p>
+                <p>Booking Required: {task.bookingRequired ? "Yes" : "No"}</p>
+                <p>Accessibility: {task.accessibility}</p>
+              </div>
+              <Button
+                variant="destructive"
+                onClick={() => deleteTaskMutation.mutate(task.id)}
+                disabled={deleteTaskMutation.isPending}
+              >
+                {deleteTaskMutation.isPending ? "Deleting..." : "Delete"}
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
