@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createTask, getAllTasks, deleteTask } from "@/app/core/dals/taskDal";
+import { createTask, getAllTasks, deleteTask, updateTask } from "@/app/core/dals/taskDal";
 import { TaskType } from "@prisma/client";
 import { useTaskStore } from "@/app/store/taskStore";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,6 +36,7 @@ export default function Home() {
   });
   const queryClient = useQueryClient();
   const { tasks, setTasks } = useTaskStore(); // Zustand for state persistence
+  const [editingTask, setEditingTask] = useState<number | null>(null);
 
   // Fetch tasks
   const { data: tasksData } = useQuery({
@@ -53,6 +54,17 @@ export default function Home() {
     },
   });
 
+  // Update task mutation
+  const updateTaskMutation = useMutation({
+    mutationFn: ({ id, updatedData }: { id: number; updatedData: TaskFormData }) => updateTask(id, updatedData),
+    onSuccess: (_, { id, updatedData }) => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      setTasks(tasks.map((task) => (task.id === id ? { ...task, ...updatedData } : task)));
+      setEditingTask(null);
+      reset();
+    },
+  });
+
   // Delete task mutation
   const deleteTaskMutation = useMutation({
     mutationFn: deleteTask,
@@ -64,10 +76,32 @@ export default function Home() {
 
   // Handle form submission
   const onSubmit = (data: TaskFormData) => {
-    createTaskMutation.mutate({
-      ...data,
-      price: parseFloat(data.price as unknown as string), // Ensure price is a float
-    });
+    if (editingTask !== null) {
+      // If editing, update the existing task
+      updateTaskMutation.mutate({
+        id: editingTask,
+        updatedData: {
+          ...data,
+          price: parseFloat(data.price as unknown as string),
+        },
+      });
+    } else {
+      // Otherwise, create a new task
+      createTaskMutation.mutate({
+        ...data,
+        price: parseFloat(data.price as unknown as string),
+      });
+    }
+  };
+  
+
+  const handleEdit = (task: any) => {
+    setEditingTask(task.id);
+    setValue("activity", task.activity);
+    setValue("price", task.price);
+    setValue("type", task.type);
+    setValue("bookingRequired", task.bookingRequired);
+    setValue("accessibility", task.accessibility);
   };
 
   // Sync Zustand state with database on page load
@@ -134,8 +168,14 @@ export default function Home() {
             </div>
 
             {/* Submit Button */}
-            <Button type="submit" disabled={createTaskMutation.isPending}>
-              {createTaskMutation.isPending ? "Adding..." : "Add Task"}
+            <Button type="submit" disabled={createTaskMutation.isPending || updateTaskMutation.isPending}>
+              {editingTask
+                ? updateTaskMutation.isPending
+                  ? "Updating..."
+                  : "Update Task"
+                : createTaskMutation.isPending
+                  ? "Adding..."
+                  : "Add Task"}
             </Button>
           </form>
         </CardContent>
@@ -153,13 +193,12 @@ export default function Home() {
                 <p>Booking Required: {task.bookingRequired ? "Yes" : "No"}</p>
                 <p>Accessibility: {task.accessibility}</p>
               </div>
-              <Button
-                variant="destructive"
-                onClick={() => deleteTaskMutation.mutate(task.id)}
-                disabled={deleteTaskMutation.isPending}
-              >
-                {deleteTaskMutation.isPending ? "Deleting..." : "Delete"}
-              </Button>
+              <div className="space-x-2">
+                <Button onClick={() => handleEdit(task)}>Edit</Button>
+                <Button variant="destructive" onClick={() => deleteTaskMutation.mutate(task.id)}>
+                  Delete
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ))}

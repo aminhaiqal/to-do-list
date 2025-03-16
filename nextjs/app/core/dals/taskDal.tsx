@@ -7,7 +7,7 @@ import { TaskType } from "@prisma/client";
 export const createTask = async (taskData: {
     activity: string;
     price: number;
-    type: TaskType; // Use TaskType from Prisma
+    type: TaskType;
     bookingRequired: boolean;
     accessibility: number;
   }) => {
@@ -34,7 +34,7 @@ export const updateTask = async (
     updatedData: {
       activity?: string;
       price?: number;
-      type?: TaskType; // Use TaskType here as well
+      type?: TaskType;
       bookingRequired?: boolean;
       accessibility?: number;
     }
